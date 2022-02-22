@@ -49,7 +49,7 @@ export default function App() {
     load: false,
     message: ''
   })
-  const [infoResource, setInfoResource] = useState<StateResource>()
+  const [infoResource, setInfoResource] = useState<StateResource | null>(null)
   const [status, requestPermission] = MediaLibrary.usePermissions();
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export default function App() {
     }) ()
   }, [status])
 
-  useEffect(() => {}, [
+  useEffect(() => {
     (async () => {
       const updateCheck = await update.checkForUpdateAsync();
       if(updateCheck.isAvailable) {
@@ -68,7 +68,7 @@ export default function App() {
         await update.reloadAsync();
       }
     }) ()
-  ])
+  }, [])
 
   const getUrl = useCallback(async (uriInstagram: string) => {
     setLoading({
@@ -76,32 +76,38 @@ export default function App() {
       message: 'Iniciando download'
     })
     const urlRequest = `https://www.instagram.com/${uriInstagram}/?__a=1`;
-    const { data, status } = await axios.get<StateResource>(urlRequest)
+    try {
+      const { data } = await axios.get<StateResource>(urlRequest)
 
-    if (status === 404 ) {
+      if (data) {
+        setLoading({
+          load: false,
+          message: 'Download concluído'
+        })
+        setInfoResource(data)
+      }
+    } catch (error) {
       Alert.alert('Alert', 'User is not found')
-      return;
-    }
-
-    if (data) {
       setLoading({
         load: false,
-        message: 'Download concluído'
+        message: ''
       })
-      setInfoResource(data)
+      setInfoResource(null)
     }
+ 
   },[])
 
-  async function registerForPushNotificationsAsync(title: string) {
+  async function registerForPushNotificationsAsync(title: string, file: string) {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: title,
+        body: file,
         subtitle: 'Download conclued',
         // sound: 'mySoundFile.wav', // Provide ONLY the base filename
       },
       trigger: {
         seconds: 2,
-        channelId: 'new-emails',
+        channelId: 'new-download',
       },
     })
   }
@@ -111,24 +117,24 @@ export default function App() {
     }
     setProgressDownload(true)
     const replace = url.match(/\.([^\./\?]+)($|\?)/)[1]
-    const fileLocation = FileSystem.documentDirectory + `${Math.random()}.${replace}`;
+    const file = `${Math.random()}.${replace}`
+    const fileLocation = FileSystem.documentDirectory + file;
     const { uri } = await FileSystem.downloadAsync(url, fileLocation)
     await MediaLibrary.createAssetAsync(uri)
     setProgressDownload(false)
-    registerForPushNotificationsAsync(loading.message)
+    registerForPushNotificationsAsync(loading.message, file)
   }, []);
 
   return (
     <View style={styles.container}>
       <Header getUrl={getUrl}/>
-      {loading.load ?
+      {loading.load && !infoResource ?
         <ActivityIndicator size='large' color='#dedede'/>
         : (
           <FlatList
             data={infoResource?.graphql.user.edge_owner_to_timeline_media.edges}
             keyExtractor={item => item.node.id}
             ListEmptyComponent={<Empty />}
-            
             renderItem={({ item }) => {
               return (
                 item.node.__typename  === 'GraphImage' || item.node.__typename  === 'GraphSidecar' ? (

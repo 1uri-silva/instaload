@@ -21,6 +21,7 @@ export const Header: React.FC<Props> = ({ getUrl }) => {
           placeholder='Enter your user instagram'
           placeholderTextColor='#000'
           autoCompleteType='off'
+          autoCorrect={false}
           autoCapitalize='none'
           onChangeText={ e => setUri(e)}
           style={styles.input}
